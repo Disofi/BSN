@@ -1,0 +1,94 @@
+
+/* Customizado Bootstrap... */
+
+.navbar { background-color:#060606 !important;}
+.navbar-default { padding:0px !important; background-color:#000000 !important; border:0px none !important;}
+.navbar, .navbar-default { border-radius: 0 !important; -moz-border-radius: 0 !important;}
+.navbar-collapse { padding:0px !important; border:0px none !important;}
+.navbar-nav { width:100%;}
+.navbar-default .navbar-toggle { background-color:#666666; border:0px none;}
+.navbar-default .navbar-toggle:hover,
+.navbar-default .navbar-toggle:focus { background-color:#111111 !important;}
+.navbar-default .navbar-toggle .icon-bar { background-color: #0166FE !important;}
+*:before, *:after { box-sizing: initial !important;}
+
+/* Estilos del menu... */
+
+#menu { background-color:#000000 !important; padding:0px 0px 20px 0px !important;}
+#menu, #menu ul, #menu ul li, #menu ul li a { margin:0px; padding:0px; border:none; list-style:none; line-height:1; display:block; position:relative; background-color:#000000; font-size:10pt; }
+span.strong { font-weight:bold;}
+#menu ul ul { display:none; margin:0px 0px 20px 10px;}
+#menu > ul > li { border-bottom:1px dotted #000000;}
+
+/* Tamaño fuente del Menu y del Submenu... */
+#menu > ul > li > a, #menu ul ul li a { font-size:10pt; text-decoration:none; cursor:pointer;}
+
+/* Menu por defecto...  */
+#menu > ul > li > a { color:#FFFFFF; background-color:#000033; padding:15px 20px;}
+#menu > ul > li > a:hover { color:#FFCC00; background-color:#0d1633;}
+
+/*  Menu activo... */
+#menu > ul > li.active > a { color:#FFFFFF; background-color:#000033;}
+#menu > ul > li.active > a:hover { color:#FFFFFF; background-color:#0d1633;}
+
+/* Menu abierto...  */
+#menu > ul > li.open > a { color:#FFCC00; background-color:#000033;}
+#menu > ul > li.open > a:hover { color:#FFCC00; background-color:#0d1633;}
+
+/* Ultimo elemento del menu... */
+#menu > ul > li:last-child > a, #menu > ul > li.last > a { border-bottom:none;}
+
+.holder { width:0; height:0; position:absolute; top:0; right:0;}
+.holder::after,
+.holder::before { display:block; position:absolute; content:""; width:6px; height:6px; right:20px; z-index:10; 
+				 -webkit-transform:rotate(-135deg); -moz-transform:rotate(-135deg); -ms-transform:rotate(-135deg); -o-transform:rotate(-135deg); transform:rotate(-135deg); }
+.holder::after { top:17px; border-top:2px solid #FFFFFF; border-left:2px solid #FFFFFF;}
+
+/* Colores de la flecha que indica la existencia de un submenu...*/
+
+/* I). Default: */
+#menu > ul > li > a > span::after { border-color:#999999;}
+#menu > ul > li > a:hover > span::after { border-color:#FFCC00;}
+
+/* II. Activo: */
+#menu > ul > li.active > a > span::after { border-color:#FFCC00;}
+#menu > ul > li.active > a:hover > span::after { border-color:#FFCC00;}
+
+/* III. Abierto: */
+#menu > ul > li.open > a > span::after { border-color:#FFCC00;}
+#menu > ul > li.open > a:hover > span::after { border-color:#FFCC00;}
+
+.holder::before { top: 18px; border-top: 2px solid; border-left: 2px solid; border-top-color: inherit; border-left-color: inherit; }
+
+/* Submenus... */
+#menu ul ul li a { border-bottom: 1px dotted #000000; padding: 10px 20px; z-index: 1; color:#DDDDDD; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1); }
+
+/* Submenu... */
+#menu ul ul li.open > a { background:none; color:#DDDDDD; }
+
+/* Submenu activo... */
+#menu ul ul li.active > a { background:none; color:#FFCC00;}
+#menu ul ul li > a.active { background:none; color:#FFCC00;}
+
+/* Efecto rollover del submenu... */
+#menu ul ul li:hover > a{ background:none; color:#FFCC00;}
+#menu ul ul li:first-child > a {  box-shadow: none; }
+#menu ul ul ul li:first-child > a { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1); }
+#menu ul ul ul li a { padding-left: 30px; }
+
+#menu > ul > li > ul > li:last-child > a, 
+#menu > ul > li > ul > li.last > a { border-bottom: none; }
+
+#menu > ul > li > ul > li.open:last-child > a,
+#menu > ul > li > ul > li.last.open > a { border-bottom: none; }
+#menu > ul > li > ul > li.open:last-child > ul > li:last-child > a { border-bottom: 0; }
+
+#menu ul ul li.has-sub > a::after { display: block; position: absolute; content: ""; width: 5px; height: 5px; right: 20px; z-index: 10; top: 11.5px; border-top: 2px solid #FFFFFF;
+							   border-left: 2px solid #FFFFFF; -webkit-transform: rotate(-135deg); -moz-transform: rotate(-135deg); -ms-transform: rotate(-135deg); 
+							   -o-transform: rotate(-135deg); transform: rotate(-135deg); border-color:#F09; }
+
+#menu ul ul li.active > a::after,
+#menu ul ul li.open > a::after,
+#menu ul ul li > a:hover::after { border-color: #FFFFFF; }
+
+.align-right { float:right;}

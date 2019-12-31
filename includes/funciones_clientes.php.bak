@@ -1,0 +1,825 @@
+<?php
+
+function clientesListar()
+	{
+	include('includes/conexion.php');
+	$dia = date('w');
+
+	$sql = "SELECT cl.CodAux, Substring(cl.NomAux,1,30) as NomAux, cl.DirAux, Isnull(mc.MtoCre,0) AS MontoCredito, 
+			".$bd['dsparam'].".[func_SaldoClienteCW](cl.CodAux) AS PENDIENTE, 
+			case when ([dsparam].dbo.[func_SaldoClienteCW](cl.CodAux)) > 0
+			THEN (Isnull(mc.MtoCre,0) - ".$bd['dsparam'].".[func_SaldoClienteCW](cl.CodAux)) 
+			ELSE (Isnull(mc.MtoCre,0) + ".$bd['dsparam'].".[func_SaldoClienteCW](cl.CodAux)) 
+			END AS SALDO, mc.ConVta 
+			FROM ".$bd['softland'].".[cwtauxi] AS cl
+			LEFT JOIN ".$bd['softland'].".[cwtcvcl] AS mc ON cl.CodAux=mc.CodAux AND cl.ActAux ='S'
+			LEFT JOIN ".$bd['softland'].".[CWTAuxVen] cwtv on cl.codaux = cwtv.CodAux";
+	$checked = array(0 => 'checked="checked"', 1 => '');
+	$mostrar_todos = 'SI';
+	$salida = null;
+	
+    $sql.= " WHERE cl.Faxaux2 like '%".$dia."%' and mc.ConVta is not null";
+
+	// Si el tipo de usuario es un vendedor, entonces seleccionar solamente sus clientes...
+	if($_SESSION['dsparam']['id_tipo_usuario'] == 2)
+		{
+		$mostrar_todos = 'NO';	
+		if(isset($_GET['list']))
+			{
+			if(trim(strtolower($_GET['list'])) == 'all')
+				{
+				$checked = array(0 => '', 1 => ' checked="checked"');
+				$mostrar_todos = 'SI';
+				$sql .= " AND cl.ClaCli ='S'";
+				}
+			}
+		}
+	if($mostrar_todos == 'NO')
+		{
+		$sql .= " AND cwtv.vencod='".$_SESSION['dsparam']['cod_usuario']."' AND cl.ClaCli='S'";
+		}
+	//print $sql;
+	$rec = sqlsrv_query($conn, $sql, array(), array('Scrollable' => 'buffered'));
+	$num_rows = sqlsrv_num_rows($rec);
+	if($_SESSION['dsparam']['id_tipo_usuario'] == 2)
+		{
+		$salida .= '
+		<div class="margin_bottom_20">
+			<label class="margin_right_20">
+				<input type="radio" name="mostrar_clientes" value="user" class="margin_right_5" onclick="ir_listado(this);"'.$checked[0].' />Mostrar s&oacute;lo mis clientes
+			</label>
+			<label>
+				<input type="radio" name="mostrar_clientes" value="all" class="margin_right_5" onclick="ir_listado(this);"'.$checked[1].' />Mostrar todos
+			</label>
+		</div>';
+		}
+	if($num_rows > 0)
+		{
+		$salida .= '
+		<div class="col-md-12">
+		<table class="registros table table-hover " id="dataTable"><thead>
+		<tr>
+			<th>C&oacute;digo</th>
+			<th nowrap="nowrap">Nombre Cliente</th>
+			<th>Direcci&oacute;n</th>
+			<th>Cr&eacute;dito</th>
+			<th nowrap="nowrap">Fact. Pendiente</th>
+			<th nowrap="nowrap">Total&nbsp;Cr&eacute;dito</th>
+			<th nowrap="no-sortable">&nbsp&nbsp;</th>
+		</tr>
+		</thead><tbody>';
+		$n = 0;
+	
+		while($row = sqlsrv_fetch_array($rec))
+			{
+			if ($row['SALDO']<>'0')
+                {
+                $credito = $row['MontoCredito'];
+                $salfact = $row['PENDIENTE'];
+                $creditoTotal = $row['SALDO'];
+
+                if ($creditoTotal>0)
+                    {
+                    $verdoc = '<a href="javascript:verificarCredito('.$row['CodAux'].', \'tr_'.$n.'\');" title="Generar Nota de Pedido para el RUT '.$row['RutAux'].'" class="guia icon tooltip_a btnVerificarNota">Generar Nota de Pedido para el RUT '.$row['RutAux'].'</a>';
+                    }
+                else if ($creditoTotal<0)
+                    {
+                    $verdoc = '<a href="javascript:VerDocumentos(\''.$row['CodAux'].'\')"><img src="images/zoom.png" /></a>';    
+                    }
+                else { $verdoc=''; } 
+                $css_facturas = 'dark_grey';
+                if ($salfact < 0) { $css_facturas = 'blue'; $salfact = 0; }
+                else { $css_facturas = 'dark_grey'; }
+                if ($creditoTotal <= 0) { $css_creditoTotal = 'red'; }
+                else { $css_creditoTotal = 'dark_grey'; }
+				
+                $salida .= '
+                <tr id="tr_'.$n.'">
+				    <td>'.$row['CodAux'].'</td>
+				    <td nowrap="nowrap">'.$row['NomAux'].'</td> 
+				    <td nowrap="nowrap">'.$row['DirAux'].'</td>
+				    <td class="text_align_right padding_right_10"><strong class="dark_grey">'.substr(formato_precio($credito),0,-1).'</strong></td>
+				    <td class="text_align_right padding_right_10"><strong class="'.$css_facturas.'">'.substr(formato_precio($salfact),0,-1).'</strong></td>
+				    <td class="text_align_right padding_right_10"><strong class="'.$css_creditoTotal.'">'.substr(formato_precio($creditoTotal),0,-1).'</strong></td>
+				    <td nowrap="nowrap" width="100">'.$verdoc.'</td>
+                </tr>';
+                $n = $n + 1;
+                }
+			}
+		$salida .= '</tbody></table></div>';
+		}
+	if($num_rows == 0) { $salida .= '<div class="message_info"><p>No se han encontrado elementos en esta secci&oacute;n</p></div>'; }
+	return $salida;
+	}
+
+function clientesSeleccionar($cod_cliente)
+	{
+	include('includes/conexion.php');
+	$sql = "SELECT TOP 1 cl.CodAux AS CodCliente, cl.NomAux AS NomCliente, cl.RutAux AS RutCliente, cl.DirAux, cl.DirNum,
+			cl.ComAux AS CodComuna, com.ComDes AS Comuna, cl.CiuAux AS CodCiudad, ciu.CiuDes AS Ciudad,
+			cl.ProvAux AS CodProvincia, prv.ProvDes AS Provincia, cl.Region AS CodRegion, reg.Descripcion AS Region,
+			cl.EMail, cl.FonAux1 AS Fono, cl.bloqueado, vnd.VenCod AS CodVendedor, nvnd.VenDes AS NomVendedor, mc.ConVta AS CodigoCondVenta,
+			cnv.Cvedes AS CondVenta 
+			FROM ".$bd['softland'].".[cwtauxi] AS cl
+			LEFT JOIN ".$bd['softland'].".[cwtregion]		AS reg	ON cl.Region=reg.id_Region
+			LEFT JOIN ".$bd['softland'].".[cwtprovincia]	AS prv	ON cl.ProvAux=prv.ProvCod
+			LEFT JOIN ".$bd['softland'].".[cwtciud]			AS ciu	ON cl.CiuAux=ciu.CiuCod
+			LEFT JOIN ".$bd['softland'].".[cwtcomu]			AS com	ON cl.ComAux=com.ComCod
+			LEFT JOIN ".$bd['softland'].".[cwtcvcl]			AS mc	ON cl.CodAux=mc.CodAux 
+			LEFT JOIN ".$bd['softland'].".[cwtconv]			AS cnv	ON mc.ConVta=cnv.CveCod
+			LEFT JOIN ".$bd['softland'].".[cwtauxven]		AS vnd	ON vnd.CodAux=cl.CodAux
+			LEFT JOIN ".$bd['softland'].".[cwtvend]			AS nvnd	ON nvnd.VenCod=vnd.VenCod 
+			WHERE cl.CodAux='".$cod_cliente."' AND cl.ActAux ='S' ";
+	$rec = sqlsrv_query($conn, $sql, array(), array('Scrollable' => 'buffered'));
+	$salida = null;
+	if (sqlsrv_num_rows($rec) == 0) { $salida = 'CLIENTE_NO_EXISTE'; }
+	if (sqlsrv_num_rows($rec) > 0)  { $salida = sqlsrv_fetch_array($rec); }
+	return $salida;
+	}
+
+function clientesObtenerCredito($cod_cliente)
+	{
+	include('includes/conexion.php');
+	// Obtener Credito del cliente...
+	$sql = "SELECT TOP 1 cl.CodAux, cl.RutAux, cl.NomAux, Isnull(mc.MtoCre,0) AS montoCredito FROM ".$bd['softland'].".[cwtauxi] AS cl
+			LEFT JOIN ".$bd['softland'].".[cwtcvcl] AS mc ON cl.CodAux=mc.CodAux AND cl.ActAux ='S' WHERE cl.CodAux='".$cod_cliente."'";
+	$rec = sqlsrv_query($conn, $sql);
+	$row = sqlsrv_fetch_array($rec);
+	return $row['montoCredito'];
+	}
+
+function clientesObtenerMontoFacturasPendientes($cod_cliente)
+	{
+	include('includes/conexion.php');
+	// Obtener saldo facturas pendientes...
+	$sql = "SELECT (SUM(movim.MovDebe)-SUM(movim.MovHaber)) AS saldo FROM ".$bd['softland'].".[cwmovim] AS movim
+			LEFT JOIN ".$bd['softland'].".[cwcpbte] pbte ON pbte.CpbAno=movim.CpbAno AND pbte.cpbNum=movim.CpbNum
+			LEFT JOIN ".$bd['softland'].".[cwpctas] ctas ON ctas.PCCODI=movim.PctCod
+			LEFT JOIN ".$bd['softland'].".[cwtauxi] auxi ON auxi.CodAux=movim.CodAux
+			LEFT JOIN ".$bd['softland'].".[iw_gsaen] gsaen ON gsaen.folio=movim.MovNumDocRef
+			WHERE pbte.CpbEst='V' AND ctas.PCCODI='1-1-03-02-01' AND movim.CpbAno = YEAR(GETDATE()) AND movim.codaux='".$cod_cliente."'";
+	$rec = sqlsrv_query($conn, $sql);
+	$row = sqlsrv_fetch_array($rec);
+	
+	$sel1 = "SELECT max(movin.codaux) as codaux, max(auxi.nomaux) as saldox, (Sum(movin.movdebe) - sum(movin.movhaber)) as saldo
+			FROM ".$bd['softland'].".[cwmovim] movin 
+			LEFT JOIN ".$bd['softland'].".cwcpbte pbte on pbte.cpbano = movin.cpbano and pbte.cpbnum = movin.cpbnum
+			LEFT JOIN ".$bd['softland'].".cwtauxi auxi on movin.CodAux = auxi.CodAux
+			WHERE pbte.cpbest = 'V' AND movin.codaux='".$cod_cliente."' group by movin.codaux
+			Having ((Sum(movin.movdebe) - sum(movin.movhaber)) <> 0) and max(auxi.nomaux) is not null and max(movin.CpbAno) = 2015
+			order by max(auxi.nomaux),DATEPART (week,max(movin.MovFv)) asc";
+	$res1 = sqlsrv_query($conn, $sel1);
+	$row1 = sqlsrv_fetch_array($res1);
+	
+	$saldo  = $row['saldo'] + $row1['saldo'];
+	
+	return $saldo;	
+	}
+
+function clientesSelectoresProductos($tipo, $grupo)
+	{
+	include('includes/conexion.php');
+	if($tipo == 'GRUPO')
+		{
+		$sql = "SELECT [CodGrupo],[DesGrupo] FROM ".$bd['softland'].".[iw_tgrupo] ORDER BY DesGrupo ASC";
+		}
+	if($tipo == 'SUBGRUPO')
+		{
+		$sql = "SELECT tsg.CodSubGr, tsg.DesSubGr FROM ".$bd['softland'].".[iw_tsubgr] AS tsg 
+				LEFT JOIN ".$bd['softland'].".[iw_tgrsubgr] AS tgsg ON tsg.CodSubGr=tgsg.CodSubGr 
+				WHERE tgsg.CodGrupo = '".$grupo."'"; 
+				//* SELECT [CodSubGr],[DesSubGr] FROM ".$bd['softland'].".[iw_tsubgr] ORDER BY DesSubGr ASC"; *//
+		}
+	$rec = sqlsrv_query($conn, $sql);
+	$options = null;
+	while($row = sqlsrv_fetch_array($rec))
+		{
+		$options .= '<option value="'.$row[0].'">'.mb_strtoupper($row[1], 'utf-8').'</option>';
+		}
+	echo '<option value="0">- Seleccionar -</option>';
+	echo '<option value="0"></option>';
+	echo $options;
+	}
+
+function SelPromos($codigoCanal)
+    {
+		echo $codigoCanal."<---";
+    include('includes/conexion.php');
+    $fecha = date('Y-m-d');
+	$sel = " SELECT codpromo,despromo FROM ".$bd['dsparam'].".[DS_Promociones] ORDER BY codpromo ASC ";
+    $res = sqlsrv_query($conn, $sel);
+    $opt = '<select name="sel_promos" id="sel_promos" onblur="MuestraProductos();">';    
+    if ($res)
+        {
+        $opt.= '<option value="0">- Seleccionar -</option><option value="0"></option>';
+        while($row = sqlsrv_fetch_array($res))
+            {
+            $opt.= '<option value="'.$row[0].'">'.$row[1].'</option>';
+            }
+        }
+    else
+        {
+        $opt .= '<input type="text" name="sel_promos" id="sel_promos" value="0" placeholder="NOP HAY PROMOCIONES DISPONIBLES" />';
+        } 
+	$opt.='</select>';
+    echo $opt;
+    }
+
+function clientesSelectoresKIT()
+	{
+	include('includes/conexion.php');
+	$sql = "SELECT desprod, CodProd + '[SEP]' + desprod + '[SEP]' + cast(preciovta as varchar(10)) as codigo 
+			FROM ".$bd['softland'].".[iw_tprod] WHERE esconfig = -1"; 
+	$rec = sqlsrv_query($conn, $sql);
+	$options = null;
+	while($row = sqlsrv_fetch_array($rec))
+		{
+		$options .= '<option value="'.$row[1].'">'.mb_strtoupper($row[0], 'utf-8').'</option>';
+		}
+	echo '<option value="0">- Seleccionar -</option>';
+	echo '<option value="0"></option>';
+	echo $options;
+	}
+	
+function clientesBuscarProductos($buscar, $grupo, $subgrupo, $lisprecio)
+	{
+	include('includes/conexion.php');
+	
+	$isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) AND strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+	if(!$isAjax) { $user_error = 'No, No, No, Usted no puede estar Aqui'; trigger_error($user_error, E_USER_ERROR); }
+	
+	$a_json = array();
+	$a_json_row = array();
+	$partes = explode(' ', $buscar);
+	$p = count($partes);
+	
+	if ($lisprecio == '0')
+		{
+		$sql = "SELECT distinct tp.CodProd, tp.DesProd, tp.CodGrupo, tp.CodSubGr, tp.PrecioVta, pd.CodUmed as codumed, detumed.desumed as desumed
+				FROM ".$bd['softland'].".[iw_tprod] AS tp LEFT JOIN ".$bd['softland'].".[iw_gmovi] AS gm ON tp.CodProd=gm.CodProd WHERE ";
+		}
+	else
+		{
+		$sql = "SELECT distinct tp.CodProd, tp.DesProd, tp.CodGrupo, tp.CodSubGr, tp.PrecioVta, pd.CodUmed as codumed, detumed.desumed as desumed
+				FROM ".$bd['softland'].".[iw_tprod] AS tp LEFT JOIN ".$bd['softland'].".[iw_gmovi] AS gm ON tp.CodProd=gm.CodProd 
+				LEFT JOIN ".$bd['softland'].".[iw_tlprprod] AS pd ON tp.CodProd=pd.CodProd
+				LEFT JOIN ".$bd['softland'].".[iw_tlispre] AS lp ON pd.CodLista=lp.CodLista 
+				LEFT JOIN [ALMA].[softland].[iw_tumed] AS detumed on pd.CodUmed = detumed.CodUMed
+				WHERE lp.CodLista='".$lisprecio."' AND ";
+		}
+	for($i = 0; $i < $p; $i++)
+		{
+		$sql .= "(tp.DesProd LIKE '%".$partes[$i]."%' OR tp.CodProd LIKE '%".$partes[$i]."%') AND ";
+		}
+	$sql = substr($sql, 0, -4);
+	
+	if($grupo != 0)    { $sql .= " AND tp.CodGrupo='".$grupo."' "; }
+	if($subgrupo != 0) { $sql .= " AND tp.CodSubGr='".$subgrupo."' "; }
+
+	if($lisprecio == '0') { $sql .= " GROUP BY tp.CodProd, tp.DesProd, tp.CodGrupo, tp.CodSubGr, tp.PrecioVta,pd.CodUmed,detumed.desumed ORDER BY DesProd ASC"; }
+	else 				  { $sql .= " GROUP BY tp.CodProd, tp.DesProd, tp.CodGrupo, tp.CodSubGr, tp.PrecioVta, pd.ValorPct ,pd.CodUmed,detumed.desumed ORDER BY DesProd ASC";  }
+	$rec = sqlsrv_query($conn, $sql, array(), array('Scrollable' => 'buffered'));
+	$num_rows = sqlsrv_num_rows($rec);
+	$c = 0;
+	
+	if($num_rows > 0)
+		{
+		while($row = sqlsrv_fetch_array($rec))
+			{
+			if ($lisprecio == '0' )	{ $precio = $row['PrecioVta']; }
+			else 					{ $precio = $row['PrecioVta']; }
+			$a_json_row['value']  = $row['CodProd'] . ' - ' . $row['DesProd'];
+			$a_json_row['codigo'] = $row['CodProd'];
+			$a_json_row['nombre'] = $row['DesProd'];
+			$a_json_row['precio'] = $precio;
+			$a_json_row['stock']  = $row['Stock'];
+			$a_json_row['codumed']  = $row['codumed'];
+			$a_json_row['desumed']  = $row['desumed'];
+			$a_json_row['codigoProd']  = $row['CodProd'];
+			array_push($a_json, $a_json_row);
+			$c = $c + 1;
+			}
+		}
+	$json = json_encode($a_json);
+	print $json;
+	}
+
+function FuncionBuscarProductoPromocion($codigo)
+	{
+	include('includes/conexion.php');
+	
+	$isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) AND strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+	if(!$isAjax) { $user_error = 'No, No, No, Usted no puede estar Aqui'; trigger_error($user_error, E_USER_ERROR); }
+	
+	$a_json = array();
+	$a_json_row = array();
+	$partes = explode(' ', $codigo);
+	$p = count($partes);
+	
+	$sql = "SELECT distinct tp.CodProd, tp.DesProd, tp.PrecioVta, 
+			FROM ".$bd['softland'].".[iw_tprod] AS tp WHERE ";
+	for($i = 0; $i < $p; $i++)
+		{
+		$sql .= "(tp.DesProd LIKE '%".$partes[$i]."%' OR tp.CodProd LIKE '%".$partes[$i]."%') ";
+		}
+	$rec = sqlsrv_query($conn, $sql, array(), array('Scrollable' => 'buffered'));
+	$num_rows = sqlsrv_num_rows($rec);
+	$c = 0;
+	
+	if($num_rows > 0)
+		{
+		while($row = sqlsrv_fetch_array($rec))
+			{
+			$precio = $row['PrecioVta']; 
+			$a_json_row['value']  = $row['CodProd'] . ' - ' . $row['DesProd'];
+			$a_json_row['codigo'] = $row['CodProd'];
+			$a_json_row['descri'] = $row['DesProd'];
+			$a_json_row['precio'] = $precio;
+			array_push($a_json, $a_json_row);
+			$c = $c + 1;
+			}
+		}
+	$json = json_encode($a_json);
+	print $json;
+	}
+	
+/* Generar nuevo numero de guia... */
+function clientesGenerarNumeroNota()
+	{
+	include('includes/conexion.php');
+	$nro_guia = null;
+	$sql = "SELECT ISNULL(MAX(NVNumero) + 1, 1) AS NroGuia FROM ".$bd['dsparam'].".[DS_NotasVenta]";
+	$rs = sqlsrv_query($conn, $sql);
+	while ($row = sqlsrv_fetch_array($rs)) { $nro_guia = $row['NroGuia']; }
+	return $nro_guia;
+	}
+
+function clientesIngresarNota($data)
+	{
+	include('includes/conexion.php');
+	$salida = null;
+	$data['nro_nota_pedido'] = clientesGenerarNumeroNota();
+
+	// Verificar si existe numero de Nota de Pedido...
+	$sel = "SELECT COUNT(NVNumero) AS existeNroNota FROM ".$bd['dsparam'].".[DS_NotasVenta] WHERE NVNumero='".$data['nro_nota_pedido']."'";
+	$rec = sqlsrv_query($conn, $sel, array(), array('Scrollable' => 'buffered'));
+	$row = sqlsrv_fetch_array($rec);
+	$existeNroNota = $row['existeNroNota'];
+
+	if($existeNroNota > 0)
+		{
+		$salida = 'ERROR_NUMERO_NOTA';
+		}
+	if($existeNroNota == 0)
+		{
+		$data['fecha_pedido'] = formatoFechaGuardar($data['fecha_pedido'], '/');
+		$cont_exec = 0;
+		// Si el cliente no tiene un vendedor asociado, entonces la venta sera realizada con mi codigo de vendedor...
+		if(trim($data['cod_vendedor']) == '' && $_SESSION['dsparam']['id_tipo_usuario'] == 2)
+			{
+			$data['cod_vendedor'] = $_SESSION['dsparam']['cod_usuario'];
+			}
+		for($p=0; $p < count($data['prod_codigo']); $p++)
+			{
+			$proc = "EXECUTE ".$bd['dsparam'].".[insertarNv] '".$data['nro_nota_pedido']."', '".$data['fecha_pedido']."', '".$data['prod_codigo'][$p]."', 
+					'".$data['prod_cantidad'][$p]."', ".$data['prod_precio_unit'][$p].", 0, 0, 0, 0, 0, 0, '".$data['prod_descripcion'][$p]."', NULL,
+					'P', '".$data['cod_cliente']."', '".$data['cod_vendedor']."', NULL, 'SOFTLAND', '".$data['observacion']."', 
+					'".$_SESSION['dsparam']['cod_usuario']."','".$data['Contacto']."','".$data['CondVenta']."','".$data['NumOC']."'";
+			$exec = sqlsrv_query($conn, $proc);
+			if(!$exec) 
+				{ 
+				$cont_exec++; 
+				}
+			}
+		if($cont_exec > 0)
+			{
+			if( ($cont_exec = sqlsrv_errors() ) != null) 
+				{
+				foreach( $cont_exec as $cont_exec ) 
+					{
+					$salida = "SQLSTATE: ".$cont_exec[ 'SQLSTATE']."<br />";
+					$salida .="code: ".$cont_exec[ 'code']."<br />";
+					$salida .="message: ".$cont_exec[ 'message']."<br />";
+					$salida .=$proc;
+					}
+				}
+			}
+		if($cont_exec == 0)
+			{
+			$sql = "INSERT INTO ".$bd['dsparam'].".[DS_NotasVentaDespacho]  ([CodAxD],[NomDch],[DirDch],[ComDch],[CiuDch],[PaiDch],[Fon1Dch],[Fon2Dch],
+					[Fon3Dch],[FaxDch],[AteDch],[ProviDch],[RegionDch],[CodPostalDch],[Usuario],[Proceso],[FechaUlMod],[Sistema],[CodGLN]) 
+					VALUES (@CodAux, @nvCodDespacho, @nvDireccionDesp, @nvComunaDesp, @nvCiudadDesp, @nvPaisDesp, NULL, NULL, NULL, NULL, NULL, 
+					@nvProvDesp, @nvRegionDesp, NULL, NULL, NULL, NULL, NULL, NULL)";
+			$salida = 'OK';
+			}
+		}
+	return $salida;
+	}
+
+function SelLisPrecios()
+	{
+	include('includes/conexion.php');
+	$hoy = date('d/m/Y');
+	
+	$sel1 = "SELECT CodLista, DesLista FROM ".$bd['softland'].".[iw_tlispre] WHERE (FechaDesde<='".$hoy."' and FechaHasta>='".$hoy."')";
+	$res1 = sqlsrv_query($conn, $sel1, array(), array('Scrollable' => 'buffered'));
+	$num1 = sqlsrv_num_rows($res1);
+	if ($num1 > 0)
+		{
+		$salida = "<option value='0'>Lista Base</option>";
+		while ($row1 = sqlsrv_fetch_array($res1))
+			{
+			$salida .= "<option value='".$row1['CodLista']."'>".$row1['DesLista']."</option>";
+			}
+		}
+	else
+		{
+		$salida = "<option value='0'>Lista Base</option>";
+		}
+	echo $salida;
+	}
+
+function SelCondVenta($CondVenta)
+	{
+	include('includes/conexion.php');
+
+	
+	$sel1 = "SELECT cvecod, cvedes FROM ".$bd['softland'].".[cwtconv]  
+	where cvecod ='".$CondVenta."'" ;
+
+	$res1 = sqlsrv_query($conn, $sel1, array(), array('Scrollable' => 'buffered'));
+	$num1 = sqlsrv_num_rows($res1);
+	if ($num1 > 0)
+		{
+		while ($row1 = sqlsrv_fetch_array($res1))
+			{
+				$salida = "<option value='".$row1['cvecod']."'>".$row1['cvedes']."</option>";
+			}	
+		
+		$sel2 = "SELECT cvecod, cvedes FROM ".$bd['softland'].".[cwtconv] order by cvecod ";
+		$res2 = sqlsrv_query($conn, $sel2, array(), array('Scrollable' => 'buffered'));
+		$num2 = sqlsrv_num_rows($res2);
+		 while ($row2 = sqlsrv_fetch_array($res2))
+			 {
+				 if ($row2['cvecod'] <> $CondVenta)
+				 {
+					$salida .= "<option value='".$row2['cvecod']."'>".$row2['cvedes']."</option>";
+				 }
+			 }
+		
+		}
+	else
+		{
+		$sel2 = "SELECT cvecod, cvedes FROM ".$bd['softland'].".[cwtconv] order by cvecod ";
+		$res2 = sqlsrv_query($conn, $sel2, array(), array('Scrollable' => 'buffered'));
+		$num2 = sqlsrv_num_rows($res2);
+		 while ($row2 = sqlsrv_fetch_array($res2))
+			 {
+				$salida .= "<option value='".$row2['cvecod']."'>".$row2['cvedes']."</option>";
+			 }
+		}
+	echo $salida;
+	}
+	
+function MaxDesc()
+	{
+	include('includes/conexion.php');
+	
+	$sel1 = "SELECT MIN(DESDE) as DESDE FROM ".$bd['dsparam'].".[parametros]";
+	$res1 = sqlsrv_query($conn, $sel1);
+	while ($row1 = sqlsrv_fetch_array($res1)) { $max = $row1['DESDE']; }
+	return $max;
+	}
+
+function DocumentosImpagos()
+    {
+    include('includes/conexion.php');
+
+    $sql = "SELECT cl.CodAux, Substring(cl.NomAux,1,30) as NomAux, cl.DirAux, Isnull(mc.MtoCre,0) AS MontoCredito, 
+            ".$bd['dsparam'].".[func_SaldoClienteCW](cl.CodAux) AS PENDIENTE, 
+            case when ([dsparam].dbo.[func_SaldoClienteCW](cl.CodAux)) > 0
+            THEN (Isnull(mc.MtoCre,0) - ".$bd['dsparam'].".[func_SaldoClienteCW](cl.CodAux)) 
+            ELSE (Isnull(mc.MtoCre,0) + ".$bd['dsparam'].".[func_SaldoClienteCW](cl.CodAux)) 
+            END AS SALDO, mc.ConVta 
+            FROM ".$bd['softland'].".[cwtauxi] AS cl
+            LEFT JOIN ".$bd['softland'].".[cwtcvcl] AS mc ON cl.CodAux=mc.CodAux AND cl.ActAux ='S'
+            LEFT JOIN ".$bd['softland'].".[CWTAuxVen] cwtv on cl.codaux = cwtv.CodAux";
+    $checked = array(0 => 'checked="checked"', 1 => '');
+    $mostrar_todos = 'SI';
+    $salida = null;
+    
+    $sql .= " WHERE cl.Faxaux2 like '%".$dia."%' and mc.ConVta is not null";
+    
+    // Si el tipo de usuario es un vendedor, entonces seleccionar solamente sus clientes...
+    if($_SESSION['dsparam']['id_tipo_usuario'] == 2)
+        {
+        $mostrar_todos = 'NO';  
+        if(isset($_GET['list']))
+            {
+            if(trim(strtolower($_GET['list'])) == 'all')
+                {
+                $checked = array(0 => '', 1 => ' checked="checked"');
+                $mostrar_todos = 'SI';
+                $sql .= " AND cl.ClaCli ='S'";
+                }
+            }
+        }
+    if($mostrar_todos == 'NO')
+        {
+        $sql .= " AND cwtv.vencod='".$_SESSION['dsparam']['cod_usuario']."' AND cl.ClaCli='S'";
+        }
+    $rec = sqlsrv_query($conn, $sql, array(), array('Scrollable' => 'buffered'));
+    $num_rows = sqlsrv_num_rows($rec);
+    if($_SESSION['dsparam']['id_tipo_usuario'] == 2)
+        {
+        $salida .= '
+        <div class="margin_bottom_20">
+            <label class="margin_right_20">
+                <input type="radio" name="mostrar_clientes" value="user" class="margin_right_5" onclick="ir_listado(this);"'.$checked[0].' />Mostrar s&oacute;lo mis clientes
+            </label>
+            <label>
+                <input type="radio" name="mostrar_clientes" value="all" class="margin_right_5" onclick="ir_listado(this);"'.$checked[1].' />Mostrar todos
+            </label>
+        </div>';
+        }
+    if($num_rows > 0)
+        {
+        $salida .= '<table class="registros table table-hover" id="dataTable"><thead>
+        <tr>
+            <th>C&oacute;digo</th>
+            <th nowrap="nowrap">Nombre Cliente</th>
+            <th>Direcci&oacute;n</th>
+            <th>Cr&eacute;dito</th>
+            <th nowrap="nowrap">Fact. Pendiente</th>
+            <th nowrap="nowrap">Total&nbsp;Cr&eacute;dito</th>
+            <th nowrap="no-sortable">&nbsp&nbsp;</th>
+        </tr>
+        </thead><tbody>';
+        $n = 0;
+    
+        while($row = sqlsrv_fetch_array($rec))
+            {
+            if ($row['SALDO']<>'0')
+                {
+                $credito = $row['MontoCredito'];
+                $salfact = $row['PENDIENTE'];
+                $creditoTotal = $row['SALDO'];
+
+                if ($creditoTotal>0)
+                    {
+                    $verdoc = '<a href="javascript:verificarCredito('.$row['CodAux'].', \'tr_'.$n.'\');" title="Generar Nota de Pedido para el RUT '.$row['RutAux'].'" class="guia icon tooltip_a btnVerificarNota">Generar Nota de Pedido para el RUT '.$row['RutAux'].'</a>';
+                    }
+                else if ($creditoTotal<0)
+                    {
+                    $verdoc = '<a href="javascript:VerDocumentos(\''.$row['CodAux'].'\')"><img src="images/zoom.png" /></a>';    
+                    }
+                else { $verdoc=''; } 
+                $css_facturas = 'dark_grey';
+                if ($salfact < 0) { $css_facturas = 'blue'; $salfact = 0; }
+                else { $css_facturas = 'dark_grey'; }
+                if ($creditoTotal <= 0) { $css_creditoTotal = 'red'; }
+                else { $css_creditoTotal = 'dark_grey'; }
+                
+                $salida .= '
+                <tr id="tr_'.$n.'">
+                    <td>'.$row['CodAux'].'</td>
+                    <td nowrap="nowrap">'.$row['NomAux'].'</td> 
+                    <td nowrap="nowrap">'.$row['DirAux'].'</td>
+                    <td class="text_align_right padding_right_10"><strong class="dark_grey">'.substr(formato_precio($credito),0,-1).'</strong></td>
+                    <td class="text_align_right padding_right_10"><strong class="'.$css_facturas.'">'.substr(formato_precio($salfact),0,-1).'</strong></td>
+                    <td class="text_align_right padding_right_10"><strong class="'.$css_creditoTotal.'">'.substr(formato_precio($creditoTotal),0,-1).'</strong></td>
+                    <td nowrap="nowrap" width="100">'.$verdoc.'</td>
+                </tr>';
+                $n = $n + 1;
+                }
+            }
+        $salida .= '</tbody></table>';
+        }
+    if($num_rows == 0) { $salida .= '<div class="message_info"><p>No se han encontrado elementos en esta secci&oacute;n</p></div>'; }
+    return $salida;
+    }
+
+function CanalLista($codaux)
+	{
+	include('includes/conexion.php');
+	
+	$sel1 = "SELECT CodCan, CodLista FROM ".$bd['softland'].".[cwtcvcl] WHERE CodAux='".$codaux."'";
+	$res1 = sqlsrv_query($conn, $sel1);
+	while ($row1 = sqlsrv_fetch_array($res1)) 
+		{
+		$codcan = $row1['CodCan'];
+		$codlis = $row1['CodLista'];
+		
+		$max = $codcan."[||]".$codlis;
+		}
+	return $max;
+	}
+	
+function DesCanal($codcan)
+	{
+	include('includes/conexion.php');
+	
+	$sel1 = "SELECT CanDes FROM ".$bd['softland'].".[cwtcana] WHERE CanCod='".$codcan."'";
+	$res1 = sqlsrv_query($conn, $sel1);
+	while ($row1 = sqlsrv_fetch_array($res1)) 
+		{
+		$candes = $row1['CanDes'];
+		}
+	echo $candes;
+	}
+
+function DesLista($codlis)
+	{
+	include('includes/conexion.php');
+	
+	$sel1 = "SELECT DesLista FROM ".$bd['softland'].".[iw_tlispre] WHERE CodLista='".$codlis."'";
+	$res1 = sqlsrv_query($conn, $sel1);
+	while ($row1 = sqlsrv_fetch_array($res1)) 
+		{
+		$candes = $row1['DesLista'];
+		}
+	echo $candes;
+	}
+
+if($_REQUEST['proceso'] == 'genera')
+	{
+	$fecha = $_REQUEST['fecha'];
+	$canalVenta = $_REQUEST['canalVenta'];
+    include('conexion.php');
+
+	$sel = " SELECT codpromo,despromo FROM ".$bd['dsparam'].".[DS_Promociones] WHERE '".$fecha."'  >= fechaini AND '".$fecha."' <=fechafin  AND cancod = '".$canalVenta."' ORDER BY codpromo ASC ";
+    $res = sqlsrv_query($conn, $sel);
+	$cont = sqlsrv_num_rows($res);
+	
+	if($cont > 0)
+		{
+		$opt = '<label class="col-md-2">Seleccione Promoci&oacute;n</label> ';
+		$opt.= '<div class="col-md-3">';
+		$opt.= '<select name="sel_promos" id="sel_promos" onblur="MuestraProductos();">'; 
+		$opt.= '<option value="0">- Seleccionar -</option><option value="0"></option>';
+        while($row = sqlsrv_fetch_array($res))
+            {
+            $opt.= ' <option value="'.$row[0].'">'.$row[1].'</option> ';
+            }
+		$opt.='</select>';
+		$opt.= ' </div> ';
+		$opt.= ' <div class="col-md-1">&nbsp;</div>  ';
+		$opt.= '  <label class="col-md-1">Cantidad</label> ';
+		$opt.= '  <div class="col-md-1"><input type="text" name="" id="" tabindex="1" size="40"></div> ';
+		$opt.= '  <div class="col-md-1">&nbsp;</div> ';
+		}
+    else
+        {
+		$opt = '<label class="col-md-2">Seleccione Promoci&oacute;n</label> ';
+		$opt.= '<div class="col-md-3">';
+		$opt.= '<select name="sel_promos" id="sel_promos" onblur="MuestraProductos();" disabled>';
+		$opt.= '</select>';
+		$opt.= ' </div> ';
+		$opt.= ' <div class="col-md-1">&nbsp;</div>  ';
+		$opt.= '  <label class="col-md-1">Cantidad</label> ';
+		$opt.= '  <div class="col-md-1"><input type="text" name="" id="" tabindex="1" size="40" disabled></div> ';
+		$opt.= '  <div class="col-md-1">&nbsp;</div> ';
+		$opt.= ' <div class="col-md-2">
+					<input type="button" name="promo_agregar" id="promo_agregar" value=" (+) " tabindex="5" />
+				 </div>';			
+        } 		
+    echo $opt;
+}
+
+if ($_REQUEST['proceso'] == 'tabla')	
+	{
+	$hasta = count($_REQUEST['indice']);
+	$indice 		= $_REQUEST['indice'];
+	$codigo 		= $_REQUEST['codigo'];
+	$descripcion 	= $_REQUEST['descripcion'];
+	$precio 		= $_REQUEST['precio'];
+	$subTotal 		= $_REQUEST['subTotal'];
+	for($a=0; $a < $hasta; $a++) 
+		{
+		echo $indice[$a]." - ".$codigo[$a]." - ".$descripcion[$a]." - ".$precio[$a]." - ".$subTotal[$a]."\r\n";
+		}	
+	}
+
+if($_REQUEST['proceso'] == 'formatoMoneda')
+	{
+	$valor = $_REQUEST['moneda'];
+	//echo $valor;
+	//echo $valor."<---";
+	//return '$' . number_format($valor,0,'','.');
+	if($_REQUEST['simbolo'] == 'a'){
+	echo '$'.number_format($valor,0,'','.');	
+	}
+	else if($_REQUEST['simbolo'] == 'b'){
+	echo number_format($valor,0,'','.');
+	//print  '$'.number_format($valor,0,'','.');
+	}
+	
+	
+}
+
+/* ***** GENERALES ***** */
+
+function selectGiroSII($seleccionado)
+	{
+	include('includes/conexion.php');
+	$sql = "SELECT [GirCod],[GirDes] FROM ".$bd['softland'].".[cwtgiro] ORDER BY GirDes ASC";
+	$rec = sqlsrv_query($conn, $sql);
+	$linea = '<select name="cod_giro_sii" id="cod_giro_sii" /><option value=""></option>';
+	while($row = sqlsrv_fetch_array($rec))
+		{
+		$selected = '';
+		if($row['GirCod'] == $seleccionado)
+			$selected = ' selected="selected"';
+		$linea .= '<option value="'.$row['GirCod'].'"'.$selected.'>'.mb_strtoupper($row['GirDes'], 'utf-8').'</option>';
+		}
+	$linea .= '</select>';
+	return $linea;
+	}
+
+function selectOptionsClientes($tipo, $data01, $data02, $data03)
+	{
+	include('includes/conexion.php');
+	if($tipo == 'REGIONES')
+		{
+		$sql = "SELECT [id_Region],[Descripcion] FROM ".$bd['softland'].".[cwtregion] ORDER BY id_Region ASC";
+		$seleccionado = $data01;
+		}
+	if($tipo == 'CIUDADES')
+		{
+		$sql = "SELECT [CiuCod],[CiuDes],[Id_Region] FROM ".$bd['softland'].".[cwtciud] WHERE Id_Region='".$data01."' ORDER BY CiuDes ASC";
+		$seleccionado = $data02;
+		}
+	if($tipo == 'COMUNAS')
+		{
+		$sql = "SELECT [ComCod],[ComDes],[Id_Region] FROM ".$bd['softland'].".[cwtcomu] WHERE Id_Region='".$data01."' ORDER BY ComDes ASC";
+		$seleccionado = $data03;
+		}
+	if($tipo == 'MANDANTES')
+		{
+		$sql = "SELECT [CodAux],[NomAux] FROM ".$bd['softland'].".[cwtauxi] WHERE ClaSoc='S' ORDER BY [NomAux] ASC";
+		$seleccionado = $data01;
+		}
+	print $sql;
+	$rec = sqlsrv_query($conn, $sql);
+	$linea = null;
+	while($row = sqlsrv_fetch_array($rec))
+		{
+		$selected = '';
+		if($row[0] == $seleccionado)
+			$selected = ' selected="selected"';
+		$linea .= '<option value="'.$row[0].'"'.$selected.'>'.mb_strtoupper($row[1], 'utf-8').'</option>';
+		}
+	echo '<option value="">-Seleccionar-</option>';
+	echo '<option value=""></option>';
+	echo $linea;
+	}
+
+function ClientesContactosListar($codigo)
+	{
+	$search  = array('[REMP1]', '[REMP2]', '[REMP3]', '[REMP4]', '[REMP5]');
+	$fila = '
+	<tr id="fila_'.$search[0].'">
+		<td><input name="cnt_nombre[]" type="text" class="requerido" value="'.$search[1].'" maxlength="30" size="30" /></td>
+		<td><input name="cnt_telefono_01[]" type="text" class="requerido" value="'.$search[2].'" maxlength="15" size="8" /></td>
+		<td><input name="cnt_telefono_02[]" type="text" value="'.$search[3].'" maxlength="15" size="8" /></td>
+		<td><input name="cnt_correo[]" type="email" class="requerido" value="'.$search[4].'" placeholder="ejemplo@ejemplo.cl" maxlength="100" size="30" /></td>
+		<td><div class="acciones float_center"><img src="images/no_icon.png" width="16" height="16" /></div></td>
+	</tr>';
+	$n = 0;
+	$salida = '<table class="registros table table-hover" id="DynamicRowsTable">
+	<tr id="table_head">
+		<th>Nombre</th>
+		<th>Tel&eacute;fono 1</th>
+		<th>Tel&eacute;fono 2</th>
+		<th>Correo Electr&oacute;nico</th>
+		<th>&nbsp;</th>
+	</tr>';
+	if($codigo == ''){ $salida .= str_replace($search, array('0', '', '', '', ''), $fila); $n = 1;}
+	if($codigo != '')
+		{
+		include('includes/conexion.php');
+		$sql = "SELECT [CodAuc],[NomCon],[FonCon],[FonCon2],[Email] FROM ".$bd['softland'].".[cwtaxco] WHERE CodAuc='".$codigo."' ORDER BY [NomCon] ASC";
+		$rec = sqlsrv_query($conn, $sql, array(), array('Scrollable' => 'buffered'));
+		$num_rows = sqlsrv_num_rows($rec);
+		if($num_rows == 0){ $salida .= str_replace($search, array('0', '', '', '', ''), $fila); $n = 1;}
+		if($num_rows > 0)
+			{
+			while($row = sqlsrv_fetch_array($rec))
+				{
+				$prev_salida = str_replace($search, array($n, $row['NomCon'], $row['FonCon'], $row['FonCon2'], $row['Email']), $fila);
+				if($n > 0)
+					{
+					$prev_salida = str_replace('<img src="images/no_icon.png" width="16" height="16" />',
+					'<a href="javascript:deleteDynamicRow(\'#fila_'.$n.'\');" class="delete icon" title="Eliminar Contacto" alt="Eliminar Contacto">Eliminar</a>', $prev_salida);
+					}
+				$salida .= $prev_salida;
+				$n = $n + 1;
+				}
+			}
+		}
+	echo '<option value="0">- Seleccionar -</option>';
+	echo $options;
+	}
+
+
+?>

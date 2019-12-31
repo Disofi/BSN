@@ -1,0 +1,248 @@
+/*$objPHPExcel->setActiveSheetIndex(0)
+					->setCellValue('A'.$j, $row_cabecera['orden'])
+					->setCellValue('B'.$j, $row_cabecera['codprod'])
+					->setCellValue('C'.$j, $row_cabecera['desprod'])
+					->setCellValue('D'.$j, $row_cabecera['GlosaOrden'])
+					->setCellValue('E'.$j, $row_cabecera['DescEsProcInterno'])
+					->setCellValue('F'.$j, $row_cabecera['nomsolic'])
+					->setCellValue('G'.$j, date_format($row_cabecera['FecIniProd'],'d-m-Y'))
+					->setCellValue('H'.$j, $row_cabecera['Estado'])
+					->setCellValue('I'.$j, $row_cabecera['CantFab']);
+				*/
+
+				$salida.= '<tr>
+							<td>'.$row_cabecera['orden'].'</td>
+							<td>'.$row_cabecera['codprod'].'</td>
+							<td>'.$row_cabecera['desprod'].'</td>
+							<td>'.$row_cabecera['GlosaOrden'].'</td>
+							<td>'.$row_cabecera['DescEsProcInterno'].'</td>
+							<td>'.$row_cabecera['nomsolic'].'</td>
+							<td>'.date_format($row_cabecera['FecIniProd'],'d-m-Y').'</td>	
+							<td>'.$row_cabecera['Estado'].'</td>
+							<td>'.$row_cabecera['CantFab'].'</td>
+						 </tr>';	
+
+				
+				$query_b = " SELECT  total,Fecha,orden FROM tavelli1.softland.iw_gsaen WHERE  Concepto='09' and tipo ='S' and orden = '".$row_cabecera['orden']."'";
+				echo $query_b."<br>";
+				$res_b = sqlsrv_query( $conn, $query_b , array(), array( "Scrollable" => SQLSRV_CURSOR_KEYSET ));
+				$num_b = sqlsrv_num_rows($res_b);	
+				if($num_b == 0)
+				{
+					$j++;
+				}
+				$bandera_b = 0;
+				while ($row_b = sqlsrv_fetch_array($res_b))
+				{
+					if($num_b > 1)
+					{
+						if($bandera_b == 0)
+						{
+							$query_bb = " SELECT  total,Fecha,orden FROM tavelli1.softland.iw_gsaen WHERE  Concepto='09' and tipo ='S' and orden = '".$row_cabecera['orden']."'";
+							//echo $query_bb."<br>";
+							$res_bb = sqlsrv_query( $conn, $query_bb , array(), array( "Scrollable" => SQLSRV_CURSOR_KEYSET ));
+							$num_bb = sqlsrv_num_rows($res_bb);	
+								//echo $num_bb."contador registros<br>";
+							if($num_bb > 1)
+							{
+								while ($row_bb = sqlsrv_fetch_array($res_bb))
+								{
+									//echo $j."<--- dentro del while<br>";
+									
+									//echo $row_bb['total']." -- ".date_format($row_bb['Fecha'],'d-m-Y')."<br>";
+									$objPHPExcel->setActiveSheetIndex(0)	
+									->setCellValue('A'.$j, $row_cabecera['orden'])
+									->setCellValue('B'.$j, $row_cabecera['codprod'])
+									->setCellValue('C'.$j, $row_cabecera['desprod'])
+									->setCellValue('D'.$j, $row_cabecera['GlosaOrden'])
+									->setCellValue('E'.$j, $row_cabecera['DescEsProcInterno'])
+									->setCellValue('F'.$j, $row_cabecera['nomsolic'])
+									->setCellValue('G'.$j, date_format($row_cabecera['FecIniProd'],'d-m-Y'))
+									->setCellValue('H'.$j, $row_cabecera['Estado'])
+									->setCellValue('I'.$j, $row_cabecera['CantFab'])					
+									->setCellValue('K'.$j, $row_bb['total'])
+									->setCellValue('L'.$j, date_format($row_bb['Fecha'],'d-m-Y'));
+									$j++;
+								}							
+							}
+							
+						}
+						$bandera_b = 1;
+
+								
+					}
+					else					
+					{
+									$objPHPExcel->setActiveSheetIndex(0)	
+									->setCellValue('A'.$j, $row_cabecera['orden'])
+									->setCellValue('B'.$j, $row_cabecera['codprod'])
+									->setCellValue('C'.$j, $row_cabecera['desprod'])
+									->setCellValue('D'.$j, $row_cabecera['GlosaOrden'])
+									->setCellValue('E'.$j, $row_cabecera['DescEsProcInterno'])
+									->setCellValue('F'.$j, $row_cabecera['nomsolic'])
+									->setCellValue('G'.$j, date_format($row_cabecera['FecIniProd'],'d-m-Y'))
+									->setCellValue('H'.$j, $row_cabecera['Estado'])
+									->setCellValue('I'.$j, $row_cabecera['CantFab'])					
+									->setCellValue('K'.$j, $row_b['total'])
+									->setCellValue('L'.$j, date_format($row_b['Fecha'],'d-m-Y'));
+									$j++;
+									echo $j." : j<br>";
+								
+					}
+					//echo $j."<--- fuera del while <br>";
+				}
+				$bandera_b = 0;
+				
+				
+				////////////////////////////////////////////////////////////////////////////////////////////////////////////
+				////////////////////////////////////////////////   QUERY C    //////////////////////////////////////////////
+				////////////////////////////////////////////////////////////////////////////////////////////////////////////
+				
+				
+				$query_c = " select CantProd,EstaTerminado,FecAvPro from tavelli1.softland.dwavpro WHERE orden = '".$row_cabecera['orden']."' ";
+				echo $query_c." -- normal<br>";
+				$res_c = sqlsrv_query( $conn, $query_c , array(), array( "Scrollable" => SQLSRV_CURSOR_KEYSET ));
+				$num_c = sqlsrv_num_rows($res_c);	
+				if($num_c == 0)
+				{
+					$j++;
+				}
+				$bandera_c = 0;
+				while ($row_c = sqlsrv_fetch_array($res_c))
+				{
+					if($num_c > 1)
+					{
+						if($bandera_c == 0)
+						{
+							$query_cc = " select CantProd,EstaTerminado,FecAvPro from tavelli1.softland.dwavpro WHERE orden = '".$row_cabecera['orden']."' ";
+							//echo $query_cc." --duplicado<br>";
+							$res_cc = sqlsrv_query( $conn, $query_cc , array(), array( "Scrollable" => SQLSRV_CURSOR_KEYSET ));
+							$num_cc = sqlsrv_num_rows($res_cc);	
+								//echo $num_bb."contador registros<br>";
+							if($num_cc > 1)
+							{
+								while ($row_cc = sqlsrv_fetch_array($res_cc))
+								{
+									//echo $row_cc['CantProd']." -- ".$row_cc['EstaTerminado']." -- ".date_format($row_bb['FecAvPro'],'d-m-Y')."<br>";
+									$objPHPExcel->setActiveSheetIndex(0)	
+									->setCellValue('A'.$j, $row_cabecera['orden'])
+									->setCellValue('B'.$j, $row_cabecera['codprod'])
+									->setCellValue('C'.$j, $row_cabecera['desprod'])
+									->setCellValue('D'.$j, $row_cabecera['GlosaOrden'])
+									->setCellValue('E'.$j, $row_cabecera['DescEsProcInterno'])
+									->setCellValue('F'.$j, $row_cabecera['nomsolic'])
+									->setCellValue('G'.$j, date_format($row_cabecera['FecIniProd'],'d-m-Y'))
+									->setCellValue('H'.$j, $row_cabecera['Estado'])
+									->setCellValue('J'.$j, $row_cc['CantProd'])					
+									->setCellValue('M'.$j, $row_cc['EstaTerminado'])
+									->setCellValue('N'.$j, date_format($row_cc['FecAvPro'],'d-m-Y'));
+									$j++;
+								}							
+							}
+							
+						}
+						$bandera_c = 1;
+
+								
+					}
+					else					
+					{
+									$objPHPExcel->setActiveSheetIndex(0)	
+									->setCellValue('A'.$j, $row_cabecera['orden'])
+									->setCellValue('B'.$j, $row_cabecera['codprod'])
+									->setCellValue('C'.$j, $row_cabecera['desprod'])
+									->setCellValue('D'.$j, $row_cabecera['GlosaOrden'])
+									->setCellValue('E'.$j, $row_cabecera['DescEsProcInterno'])
+									->setCellValue('F'.$j, $row_cabecera['nomsolic'])
+									->setCellValue('G'.$j, date_format($row_cabecera['FecIniProd'],'d-m-Y'))
+									->setCellValue('H'.$j, $row_cabecera['Estado'])
+									->setCellValue('I'.$j, $row_cabecera['CantFab'])				
+									->setCellValue('J'.$j, $row_c['CantProd'])					
+									->setCellValue('M'.$j, $row_c['EstaTerminado'])
+									->setCellValue('N'.$j, date_format($row_c['FecAvPro'],'d-m-Y'));
+									//$j++;
+									//$c++;
+					}
+					
+				}
+				$bandera_c = 0;
+
+				$query_d =" SELECT iw_gsaen.Fecha,iw_gsaen.Folio,iw_gsaen.CodBod, iw_gmovi.CantIngresada, iw_gsaen.orden ";
+				$query_d.=" FROM tavelli1.softland.iw_gsaen iw_gsaen ";
+				$query_d.=" LEFT JOIN tavelli1.softland.iw_gmovi iw_gmovi on iw_gmovi.Orden = iw_gsaen.Orden AND iw_gmovi.NroInt = iw_gsaen.NroInt AND iw_gmovi.Tipo = iw_gsaen.Tipo ";
+				$query_d.=" where iw_gsaen.orden = '".$row_cabecera['orden']."' AND Concepto='10' and iw_gsaen.tipo ='E' ";
+				echo $query_d."<br><br><br><br>";
+				
+				$res_d = sqlsrv_query( $conn, $query_d , array(), array( "Scrollable" => SQLSRV_CURSOR_KEYSET ));
+				$num_d = sqlsrv_num_rows($res_d);
+
+				$bandera_d = 0;
+				if($num_d == 0)
+				{
+					$j++;
+				}
+				while ($row_d = sqlsrv_fetch_array($res_d))
+				{
+					if($num_d > 1)
+					{
+						if($bandera_d == 0)
+						{
+							//$query_dd = " select CantProd,EstaTerminado,FecAvPro from tavelli1.softland.dwavpro WHERE orden = '".$row_cabecera['orden']."' ";
+							$query_dd =" SELECT iw_gsaen.Fecha,iw_gsaen.Folio,iw_gsaen.CodBod, iw_gmovi.CantIngresada, iw_gsaen.orden ";
+							$query_dd.=" FROM tavelli1.softland.iw_gsaen iw_gsaen ";
+							$query_dd.=" LEFT JOIN tavelli1.softland.iw_gmovi iw_gmovi on iw_gmovi.Orden = iw_gsaen.Orden AND iw_gmovi.NroInt = iw_gsaen.NroInt AND iw_gmovi.Tipo = iw_gsaen.Tipo ";
+							$query_dd.=" where iw_gsaen.orden = '".$row_cabecera['orden']."' AND Concepto='10' and iw_gsaen.tipo ='E' ";
+							//echo $query_dd." --duplicado<br>";
+							$res_dd = sqlsrv_query( $conn, $query_dd , array(), array( "Scrollable" => SQLSRV_CURSOR_KEYSET ));
+							$num_dd = sqlsrv_num_rows($res_dd);	
+								//echo $num_bb."contador registros<br>";
+							if($num_dd > 1)
+							{
+								while ($row_dd = sqlsrv_fetch_array($res_dd))
+								{
+									//echo date_format($row_dd['Fecha'],'d-m-Y')." - ".$row_dd['Folio']." - ".$row_dd['CodBod']." - ".$row_dd['CantIngresada']." - ".$row_dd['orden']."<br>";
+									$objPHPExcel->setActiveSheetIndex(0)	
+									->setCellValue('A'.$j, $row_cabecera['orden'])
+									->setCellValue('B'.$j, $row_cabecera['codprod'])
+									->setCellValue('C'.$j, $row_cabecera['desprod'])
+									->setCellValue('D'.$j, $row_cabecera['GlosaOrden'])
+									->setCellValue('E'.$j, $row_cabecera['DescEsProcInterno'])
+									->setCellValue('F'.$j, $row_cabecera['nomsolic'])
+									->setCellValue('G'.$j, date_format($row_cabecera['FecIniProd'],'d-m-Y'))
+									->setCellValue('H'.$j, $row_cabecera['Estado'])
+									->setCellValue('O'.$j, $row_dd['CantIngresada'])					
+									->setCellValue('P'.$j, date_format($row_dd['Fecha'],'d-m-Y'))
+									->setCellValue('Q'.$j, $row_dd['Folio'])
+									->setCellValue('R'.$j, $row_dd['CodBod']);
+									$j++;
+								}							
+							}
+							
+						}
+						$bandera_d = 1;
+			
+					}
+					else					
+					{
+									$objPHPExcel->setActiveSheetIndex(0)	
+									->setCellValue('A'.$j, $row_cabecera['orden'])
+									->setCellValue('B'.$j, $row_cabecera['codprod'])
+									->setCellValue('C'.$j, $row_cabecera['desprod'])
+									->setCellValue('D'.$j, $row_cabecera['GlosaOrden'])
+									->setCellValue('E'.$j, $row_cabecera['DescEsProcInterno'])
+									->setCellValue('F'.$j, $row_cabecera['nomsolic'])
+									->setCellValue('G'.$j, date_format($row_cabecera['FecIniProd'],'d-m-Y'))
+									->setCellValue('H'.$j, $row_cabecera['Estado'])
+									->setCellValue('I'.$j, $row_cabecera['CantFab'])				
+									->setCellValue('O'.$j, $row_d['CantIngresada'])					
+									->setCellValue('P'.$j, date_format($row_d['Fecha'],'d-m-Y'))
+									->setCellValue('Q'.$j, $row_d['Folio'])
+									->setCellValue('R'.$j, $row_d['CodBod']);
+					}
+					
+				}
+				$bandera_d = 0;
+
+
+
+			
